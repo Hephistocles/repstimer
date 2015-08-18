@@ -91,7 +91,7 @@
 	$("#play").click(function() {
 		bell.play();
 	})
-		var bell = new buzz.sound( "chime.mp3").load();
+		var bell = new buzz.sound( "chime.mp3");
 		var currentExLen = null;
 		var currDef = null;
 
@@ -295,6 +295,7 @@
 		GroupExercise.prototype.constructor = GroupExercise;
 
 		function init(ex) {
+			bell.play()
 			document.getElementById("thing").style.display = "block"
 			document.getElementById("circuit").innerHTML = "";
 			if (currDef !== null) {
