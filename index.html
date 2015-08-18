@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>My Timer</title>
+	<style type="text/css">
+		#circuit {
+			width:100%;
+		}
+		#circuit div {
+			padding:15px 0;
+			min-height:40px;
+			display: inline-block;
+			vertical-align: middle;
+			box-sizing: border-box;
+			cursor:pointer;
+		}
+		#circuit div:hover > .name {
+			display:block;
+		}
+		#circuit div .name {
+		    position: absolute;
+		    top: -50px;
+		    left: 0;
+		    width: 100%;
+		    text-align: center;
+		    display: none;
+		    font-size: 2em;
+		    text-transform: uppercase;
+		}
+		#circuit div.rest {
+			min-height: 15px;
+			padding:0;
+			border: 0px;
+			background-color:#AAA;
+		}
+		#pointer {
+		    border-left: 15px solid transparent;
+		    border-right: 15px solid transparent;
+		    border-bottom: 15px solid black;
+		    position: relative;
+		    width: 0;
+		    margin-left: -15px;
+		}
+		#continue {
+			font-size:3em;
+			padding:20px;
+			display:none;
+		}
+		#thing { 
+			display:none;
+			margin-top:30px;
+			position:relative;
+			text-align:center;
+		}
+	</style>
+</head>
+<body>
+	<h1>My Timer</h1>
+	<select id="exercises">
+		<option value="0">Short Demo Exercise</option>
+		<option value="1">Plyo Legs Day 1</option>
+		<option value="2">Plyo Legs Day 2</option>
+		<option value="3">Plyo Legs Day 3</option>
+		<!-- <option value="4">Plyo Legs Day 4</option>
+		<option value="5">Plyo Legs Day 5</option>
+		<option value="6">Plyo Legs Day 6</option>
+		<option value="7">Plyo Legs Day 7</option>-->
+		<option value="8">HJ General Conditioning (Medium)</option>
+		<option value="9">HJ Hamstring Circuit (Medium)</option>
+		<option value="10">HJ Upper Body (Medium)</option>
+		<option value="11">HJ Core (Medium)</option>
+		<option value="12">HJ Legs (Medium)</option> 
+		<option value="13">HJ Plyos (Medium)</option>
+	</select>
+	<button id="startEx">Start!</button>
+	<div id="thing">
+		<div id="container">
+			<div id="circuit"></div>
+		</div>
+		<h2 id="current">Current</h2>
+		<h3 id="timer">Current</h2>
+		<button id="continue" class="btn">Continue</button>
+	</div>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+	<script src="q.js"></script>
+	<script type="text/javascript">
+		var bell = new Audio('chime.mp3');
+		var currentExLen = null;
+		var currDef = null;
+
+		function startEx(ex){
+			bell.play();
+			currentExLen = ex;
+			currentStartTime = new Date().getTime();
+			updateDisplay();
+		}
+		function updateDisplay() {
+			if (currentExLen !== null && currentExLen > 0) {
+				// if (! (currentExcercise instanceof RepsExercise)) {
+				var elapsed = Math.floor((new Date().getTime() -  currentStartTime)/1000);
+				document.getElementById("timer").innerText = (currentExLen - elapsed) + "s to go!";
+				// }	
+			} else {
+				document.getElementById("timer").innerText = "";
+			}
+		}
+		window.setInterval(updateDisplay, 1000);
+
+		function myDelay(ms) {
+		    var deferred = Q.defer();
+		    var handle = setTimeout(deferred.resolve, ms);
+		    Q.catch(deferred.promise, function () {
+		        clearTimeout(handle);
+		    });
+		    currDef = deferred;
+		    return deferred.promise;
+		}
+
+
+		function doRest(r) {
+			return function() {
+				document.getElementById("current").innerText = "Take a break for " + r + "s."
+				document.getElementById("continue").style.display = "none";
+				startEx(r)
+				return myDelay(r* 1000);
+			}
+		}
+
+		function Exercise(name, sets, rest) {
+			this.name = name;
+			this.sets = sets;
+			this.rest = rest;
+			this.colour = stringToColour("name");
+			this.then = function(ex) {
+				this.next = ex;
+				ex.prev = this;
+				// make chainable
+				return ex;
+			}
+			this.head = function() {
+				if (this.prev === undefined) return this;
+				return this.prev.head();
+			}
+		}
+
+		function TimeExercise(name, sets, rest, time) {
+			Exercise.apply(this, arguments);
+			this.type = "time";
+			this.time = time;
+			this.getLength = function() {
+				return (time + rest) * sets + ((this.next === undefined)?0:this.next.getLength());
+			}
+
+			this.draw = function(container, sf) {
+
+				var r = rest * sf;
+
+				for (var i=0; i<sets; i++) {
+					var me = $("<div><div class='name'>" + name + "</div></div>" )
+					me.addClass(this.type)
+					me.css("width", time*sf + "%")
+					me.css("background-color", stringToColour(name))
+					me.attr("data-ex", name)
+					
+					var restdiv = $(document.createElement("div"))
+					restdiv.addClass("rest")
+					restdiv.css("width", r + "%")
+
+					container.append(me);
+					container.append(restdiv);
+				}
+
+				// draw next elm
+				if (this.next !== undefined) this.next.draw(container, sf)
+			}
+			this.go = function(p) {
+
+				for (var i=0; i< sets; i++) {
+					(function(li) {
+						p = p.then(function() {
+							var m = name;
+							m += " (" + time + "s)";
+							if (sets > 1) m += " - " + li + "/" + sets;
+							document.getElementById("current").innerText = m;
+							document.getElementById("continue").style.display = "none";
+							startEx(time)
+							return myDelay(time * 1000);
+						})
+						.then(doRest(rest))
+					})(i+1)
+				}
+				if (this.next !== undefined) {
+					return this.next.go(p)
+				}
+				return p;
+			}
+		}
+		TimeExercise.prototype = new Exercise()
+		TimeExercise.prototype.constructor = TimeExercise;
+		
+		function RepsExercise(name, sets, rest, reps) {
+			// in many ways treat this like a time exercise
+			TimeExercise.apply(this, [name, sets, rest, 60]);
+			this.type = "time";
+			this.reps = reps;
+			this.go = function(p) {
+
+				for (var i=0; i< sets; i++) {
+					(function(li) {
+						p = p.then(function() {
+							var cont = document.getElementById("continue");
+							cont.style.display = "inline-block";
+							var m = name;
+							if (typeof reps === "string" && reps.length > 0) m += " (" + reps + ")";
+							if (typeof reps === "number" && reps>0) m +=  " (x" + reps + ")";
+							if (sets > 1) m += " - " + li + "/" + sets;
+							document.getElementById("current").innerText = m;
+							var d = Q.defer();
+							startEx(0)
+							$(cont).off("click").on("click", function() {
+								d.resolve();
+							});
+							currDef = d;
+							return d.promise;
+						})
+						.then(doRest(rest))
+					})(i+1)
+				}
+				if (this.next !== undefined) {
+					return this.next.go(p)
+				}
+				return p;
+			}
+		}
+		RepsExercise.prototype = new TimeExercise()
+		RepsExercise.prototype.constructor = RepsExercise;
+		
+		function GroupExercise(name, sets, rest, inner) {
+			Exercise.apply(this, arguments);
+			this.type = "group";
+			this.inner = inner;
+
+			this.getLength = function() {
+				var len = 0;
+				return (inner.getLength() + rest) * sets + ((this.next === undefined)?0:this.next.getLength());
+			}
+			this.draw = function(container, sf) {
+
+				var r = rest * sf;
+				var innerLength = inner.getLength();
+				var len = innerLength * sf;
+
+				for (var i=0; i<sets; i++) {
+					var me = $(document.createElement("div"))
+					me.addClass("group")
+					me.css("width", len + "%")
+					me.css("background-color", stringToColour(name))
+					me.attr("data-ex", name)
+
+					inner.draw(me, 100/innerLength);
+
+					var restdiv = $(document.createElement("div"))
+					restdiv.addClass("rest")
+					restdiv.css("width", r + "%")
+
+					container.append(me);
+					container.append(restdiv);
+				}
+
+				// draw next elm
+				if (this.next !== undefined) this.next.draw(container, sf)
+			}
+			this.go = function(p) {
+				document.getElementById("continue").style.display = "none";
+
+				for (var i=0; i< sets; i++) {
+					p = this.inner.go(p)
+						 .then(doRest(rest))				
+				}
+				if (this.next !== undefined) {
+					return this.next.go(p)
+				}
+				return p;
+			}
+		}
+		GroupExercise.prototype = new Exercise()
+		GroupExercise.prototype.constructor = GroupExercise;
+
+		function init(ex) {
+			document.getElementById("thing").style.display = "block"
+			document.getElementById("circuit").innerHTML = "";
+			if (currDef !== null) {
+				currDef.reject();
+			}
+			var tLength = ex.getLength();
+			ex.draw($(document.getElementById("circuit")), 100/tLength);
+			var p = Q(true);
+			ex.go(p)
+		}
+
+		function stringToColour(str) {
+			// str to hash
+			for (var i = 0, hash = 0; i < str.length; hash = str.charCodeAt(i++) + ((hash << 5) - hash));
+
+			// int/hash to hex
+			for (var i = 0, colour = "#"; i < 3; colour += ("00" + ((hash >> i++ * 8) & 0xFF).toString(16)).slice(-2));
+
+			return colour;
+		}
+	</script>
+	<script>
+		var exercises = [
+
+			// Demo Exercises
+			new GroupExercise("Dynamic Warm Up", 1, 0,
+				new RepsExercise("Jog Lap", 1, 1, "")
+				.then(new TimeExercise("Press Up + Twist", 1, 5, 3))
+				.then(new TimeExercise("Lunges", 1, 5, 3))
+				.head()
+			)
+			.then(new RepsExercise("Around The Square", 3, 9, "4 cycles"))
+			.then(new RepsExercise("Tuck Jumps", 2, 1, "10 jumps"))
+			.then(new RepsExercise("Horizontal Bounds", 3, 1, "15 each side"))
+			.then(new RepsExercise("180 Squat Jumps", 3, 9, "10 jumps"))
+			.then(new GroupExercise("Cool Down", 1, 0,
+				new TimeExercise("Hamstring Stretch Left", 1, 3, 2)
+				.then(new TimeExercise("Hamstring Stretch Right", 1, 3, 2))
+				.head()
+			))
+			.head(),
+
+			// Leg Plyo Day 1
+			new GroupExercise("Dynamic Warm Up", 1, 5,
+				new RepsExercise("Jog Lap", 1, 1, "")
+				.then(new TimeExercise("High Knee into Lunge", 1, 3, 20))
+				.then(new TimeExercise("Heel to Butt into Reverse Lunge", 1, 3, 20))
+				.then(new TimeExercise("Sumo Squats", 1, 3, 20))
+				.then(new TimeExercise("Side Lunge", 1, 3, 20))
+				.then(new TimeExercise("Press Up into Twist", 1, 3, 20))
+				.then(new TimeExercise("Arm Circles", 1, 3, 20))
+				.head()
+			)
+			.then(new RepsExercise("Around The Square", 3, 90, "4 cycles"))
+			.then(new RepsExercise("Tuck Jumps", 2, 120, "10 jumps"))
+			.then(new RepsExercise("Horizontal Bounds", 3, 120, "15 each side"))
+			.then(new RepsExercise("180 Squat Jumps", 3, 90, "10 jumps"))
+
+			.then(new GroupExercise("Cool Down Stretches", 1, 0,
+				new TimeExercise("Calf & Hamstring (2x both sides)", 4, 3, 20)
+				.then(new TimeExercise("Achilles (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Hip Flexor (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Lying Lat (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Straight Leg (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Knee to Chest (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Elbow to Ankle (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Heel to Butt (2x both sides)", 4, 3, 15))
+				.head()
+			))
+			.head(),
+
+			// Leg Plyo Day 2
+			new GroupExercise("Dynamic Warm Up", 1, 5,
+				new RepsExercise("Jog Lap", 1, 1, "")
+				.then(new TimeExercise("High Knee into Lunge", 1, 3, 20))
+				.then(new TimeExercise("Heel to Butt into Reverse Lunge", 1, 3, 20))
+				.then(new TimeExercise("Sumo Squats", 1, 3, 20))
+				.then(new TimeExercise("Side Lunge", 1, 3, 20))
+				.then(new TimeExercise("Press Up into Twist", 1, 3, 20))
+				.then(new TimeExercise("Arm Circles", 1, 3, 20))
+				.head()
+			)
+			.then(new RepsExercise("Lateral High Jumps", 3, 90, "20 jumps"))
+			.then(new RepsExercise("Depth Jumps", 3, 120, "8 jumps"))
+			.then(new RepsExercise("Single Leg Box Jumps", 2, 90, "8 each leg"))
+			.then(new RepsExercise("Seated Box Jumps", 3, 120, "8 jumps"))
+
+			.then(new GroupExercise("Cool Down Stretches", 1, 0,
+				new TimeExercise("Calf & Hamstring (2x both sides)", 4, 3, 20)
+				.then(new TimeExercise("Achilles (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Hip Flexor (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Lying Lat (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Straight Leg (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Knee to Chest (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Elbow to Ankle (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Heel to Butt (2x both sides)", 4, 3, 15))
+				.head()
+			))
+			.head(),
+
+			// Leg Plyo Day 3
+			new GroupExercise("Dynamic Warm Up", 1, 5,
+				new RepsExercise("Jog Lap", 1, 1, "")
+				.then(new TimeExercise("High Knee into Lunge", 1, 3, 20))
+				.then(new TimeExercise("Heel to Butt into Reverse Lunge", 1, 3, 20))
+				.then(new TimeExercise("Sumo Squats", 1, 3, 20))
+				.then(new TimeExercise("Side Lunge", 1, 3, 20))
+				.then(new TimeExercise("Press Up into Twist", 1, 3, 20))
+				.then(new TimeExercise("Arm Circles", 1, 3, 20))
+				.head()
+			)
+			.then(new RepsExercise("Uphill Sprints", 4, 120, "20 Metres"))
+			.then(new RepsExercise("Uphill Jump Squats", 3, 90, "15 Jumps"))
+			.then(new RepsExercise("Clap Press up", 2, 50, "10 Pressups"))
+			.then(new RepsExercise("V-Up toe Touches", 3, 60, "15 V-ups"))
+			.then(new TimeExercise("Med Ball Twists", 3, 60, 30))
+
+			.then(new GroupExercise("Cool Down Stretches", 1, 0,
+				new TimeExercise("Calf & Hamstring (2x both sides)", 4, 3, 20)
+				.then(new TimeExercise("Achilles (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Hip Flexor (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Lying Lat (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Straight Leg (2x both sides)", 4, 3, 20))
+				.then(new TimeExercise("Knee to Chest (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Elbow to Ankle (2x both sides)", 4, 3, 15))
+				.then(new TimeExercise("Heel to Butt (2x both sides)", 4, 3, 15))
+				.head()
+			))
+			.head(),
+
+			,,,,
+
+			new GroupExercise("General Conditioning", 2, 0, 
+				new TimeExercise("Ski sits", 1, 5, 50)
+				.then(new TimeExercise("Push-ups Narrow", 1, 5, 25))
+				.then(new TimeExercise("120 Degrees", 1, 5, 25))
+				.then(new TimeExercise("Push Up Wide", 1, 5, 25))
+				.then(new TimeExercise("90 Degrees", 1, 5, 25))
+				.then(new TimeExercise("Shin statics", 1, 5, 25))
+				.then(new TimeExercise("Superman", 1, 5, 25))
+				.then(new TimeExercise("Tricep Dips", 1, 5, 25))
+				.then(new TimeExercise("Crunches", 1, 5, 25))
+				.then(new TimeExercise("Lunges", 1, 5, 25))
+				.then(new TimeExercise("Side Crunches", 1, 5, 25))
+				.then(new TimeExercise("Burpees", 1, 5, 25))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			),
+
+			new GroupExercise("Hamstring Circuit", 2, 0, 
+				new TimeExercise("Ski sits", 1, 5, 50)
+				.then(new TimeExercise("Bridge Left", 1, 5, 40))
+				.then(new TimeExercise("Bridge Right", 1, 5, 40))
+				.then(new RepsExercise("Hops Left", 1, 5, 8))
+				.then(new RepsExercise("Hops Right", 1, 5, 8))
+				.then(new RepsExercise("Romanian Squat Left", 1, 5, 10))
+				.then(new RepsExercise("Romanian Squat Right", 1, 5, 10))
+				.then(new RepsExercise("Single Leg Left", 1, 5, 8))
+				.then(new RepsExercise("Single Leg Right", 1, 5, 8))
+				.then(new TimeExercise("Wall March", 1, 5, 50))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			),
+
+			new GroupExercise("Upper Body Circuit", 2, 0, 
+				new RepsExercise("Press Up Narrow", 1, 5, 8)
+				.then(new RepsExercise("Raised Tricep Dip", 1, 5, 10))
+				.then(new RepsExercise("Press Up Arm Raise", 1, 5, 8))
+				.then(new RepsExercise("Press Up Leg Raise", 1, 5, 8))
+				.then(new RepsExercise("Dragons", 1, 5, 8))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			),
+
+
+			new GroupExercise("Core", 2, 0, 
+				new TimeExercise("Press Up Narrow", 1, 5, 30)
+				.then(new TimeExercise("Plank Superman (L+R)", 2, 5, 15))
+				.then(new TimeExercise("Crunches", 1, 5, 25))
+				.then(new TimeExercise("Side Plank (L+R)", 2, 5, 25))
+				.then(new TimeExercise("V-Sits", 1, 5, 25))
+				.then(new TimeExercise("Prone Plank", 1, 5, 25))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			),
+			
+
+			new GroupExercise("Legs", 2, 0, 
+				new RepsExercise("Deep Squat", 1, 5, 12)
+				.then(new RepsExercise("Romanian Squat (L+R)", 2, 5, 8))
+				.then(new RepsExercise("Sumos", 1, 5, 12))
+				.then(new RepsExercise("Lunges (L+R)", 2, 5, 8))
+				.then(new RepsExercise("Calf Raises (L+R)", 2, 5, 16))
+				.then(new RepsExercise("Single Leg Squats (L+R)", 2, 5, 8))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			),
+			
+
+			new GroupExercise("Plyos", 2, 0, 
+				new RepsExercise("Two Foot Skipping", 1, 5, 50)
+				.then(new RepsExercise("Star Jump", 1, 5, 10))
+				.then(new RepsExercise("Hops (L+R)", 2, 5, 6))
+				.then(new RepsExercise("Slalom Jump", 2, 5, 10))
+				.then(new RepsExercise("Step Up/Knee Drive (L+R)", 2, 5, 10))
+				.then(new RepsExercise("Lunge Jumps", 2, 5, 12))
+				.then(new RepsExercise("Rest As long as needed", 1, 0))
+				.head()
+			)
+			
+
+		]
+
+		$("#startEx").click(function() {
+			var ex = exercises[parseInt($("#exercises").val())];
+			init(ex);
+		});
+	</script>
+</body>
+</html>
