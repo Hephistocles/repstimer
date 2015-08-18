@@ -82,21 +82,16 @@
 		<h3 id="timer">Current</h2>
 		<button id="continue" class="btn">Continue</button>
 	</div>
-	<button id="play" class="btn">Play</button>
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/buzz/1.1.10/buzz.min.js"></script>
 
 	<script src="q.js"></script>
 	<script type="text/javascript">
-	$("#play").click(function() {
-		bell.play();
-	})
 		var bell = new buzz.sound( "chime.mp3");
 		var currentExLen = null;
 		var currDef = null;
 
 		function startEx(ex){
-			alert("playing!")
 			bell.play();
 			currentExLen = ex;
 			currentStartTime = new Date().getTime();
